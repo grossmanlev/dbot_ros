@@ -161,6 +161,7 @@ bool InteractiveMarkerInitializer::wait_for_object_poses()
         ros::Duration(1.e-3).sleep();
         ros::spinOnce();
     }
+    ROS_INFO("All interactive object poses set ...");
 
     return true;
 }

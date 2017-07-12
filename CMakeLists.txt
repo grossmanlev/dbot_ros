@@ -48,6 +48,9 @@ find_package(catkin REQUIRED
   dbot
   dbot_ros_msgs
   interactive_markers
+  pcl_conversions
+  pcl_ros
+  geometric_shapes
   )
 
 set(PROJECT_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
@@ -82,6 +85,7 @@ catkin_package(
     dbot
     dbot_ros_msgs
     interactive_markers
+    geometric_shapes
   DEPENDS
     OpenCV
     eigen)
@@ -170,3 +174,11 @@ target_link_libraries(
   ${PROJECT_NAME}
   ${catkin_LIBRARIES})
 
+add_executable(
+  pcl_example
+  source/${PROJECT_NAME}/dev/pcl_example.cpp)
+target_link_libraries(
+  pcl_example
+  ${PROJECT_NAME}
+  ${PCL_LIBRARIES}
+  ${catkin_LIBRARIES})
