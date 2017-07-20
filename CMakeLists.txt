@@ -182,3 +182,12 @@ target_link_libraries(
   ${PROJECT_NAME}
   ${PCL_LIBRARIES}
   ${catkin_LIBRARIES})
+
+add_executable(
+  pcd2binvox
+  source/${PROJECT_NAME}/dev/pcd2binvox.cpp)
+target_link_libraries(
+  pcd2binvox
+  ${PROJECT_NAME}
+  ${PCL_LIBRARIES}
+  ${catkin_LIBRARIES})
