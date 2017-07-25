@@ -44,7 +44,8 @@ float x_pos, y_pos, z_pos, radius;
 geometry_msgs::Pose original_pose;
 bool goodPos = false;
 Eigen::Vector4f minPoint, maxPoint;
-int recon_stl_num = 0; //hack to get around RVIZ's mesh marker loading optimization
+
+Eigen::Affine3f cropAffine;
 
 // bool getBoundingCylinderOfMesh(std::string mesh_file, shapes::Shape &mesh, bodies::BoundingCylinder &cyl) // adapted from ROS user Benjamin Cohen
 // {
@@ -117,20 +118,31 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   // }
 
 
+
   if(goodPos) {
     // Set up the bouning box for the Crop filter
     //float hack_radius = 0.8 * radius;
-    minPoint[0] = x_pos - radius;
-    minPoint[1] = y_pos - radius;
-    minPoint[2] = z_pos - radius;
-    maxPoint[0] = x_pos + radius;
-    maxPoint[1] = y_pos + radius;
-    maxPoint[2] = z_pos + radius;
+    minPoint[0] = -radius;
+    minPoint[1] = -radius;
+    minPoint[2] = -radius;
+    maxPoint[0] = radius;
+    maxPoint[1] = radius;
+    maxPoint[2] = radius;
+    printf("Radius: %f\n", radius);
     // Filter
     pcl::CropBox<pcl::PCLPointCloud2> cropFilter;
     cropFilter.setInputCloud(cloudPtr);
     cropFilter.setMin(minPoint);
     cropFilter.setMax(maxPoint);
+    //cropFilter.setTransform(cropAffine);
+    cropFilter.setTranslation(Eigen::Vector3f(x_pos, y_pos, z_pos));
+    cropFilter.setRotation(cropAffine.linear().eulerAngles(0, 1, 2));
+
+    Eigen::Vector4f min = cropFilter.getMin();
+    Eigen::Vector4f max = cropFilter.getMax();
+    printf("Min: %f, %f, %f\n", min[0], min[1], min[2]);
+    printf("Max: %f, %f, %f\n", max[0], max[1], max[2]);
+
     cropFilter.filter(*cloud_filtered);
 
     pcl::StatisticalOutlierRemoval<pcl::PCLPointCloud2> sor;
@@ -204,7 +216,20 @@ void model_cb (const visualization_msgs::Marker& model_msg)
     printf("Marker Pose: %f, %f, %f, %f\n", m_rotation.x(), m_rotation.y(), m_rotation.z(), m_rotation.w());
 
     Eigen::Quaterniond quat(cyl.pose.rotation());
-    Eigen::Translation<double,3> trans(cyl.pose.translation());
+    //Eigen::Translation<double, 3> trans(cyl.pose.translation());
+    Eigen::Vector3f trans(model_msg.pose.position.x, model_msg.pose.position.y, model_msg.pose.position.z);
+
+    Eigen::Affine3f crop = Eigen::Affine3f::Identity();
+    //Eigen::Translation3f(trans) * Eigen::AngleAxisf(composed) * Eigen::Scaling(0.1);
+    crop.translation() = trans;
+    crop.linear() = composed.toRotationMatrix(); // * Eigen::Scaling(radius)
+
+    pos_mutex.lock();
+    cropAffine = crop;
+    pos_mutex.unlock();
+    //crop.linear() = composed.toRotationMatrix() * Eigen::Scaling(radius);
+    //crop.translation() = trans;
+
 
     visualization_msgs::Marker marker;
     marker.header.frame_id = "/camera_depth_optical_frame"; //SPECIFIC (hardcoded)
@@ -260,6 +285,7 @@ void model_cb (const visualization_msgs::Marker& model_msg)
     mesh_marker.color.b = 1.0;
     mesh_marker.color.a = 1.0;
 
+    // Hack to continuously update the mesh file (need to keep changing the file name)
     std::string stl_file = "recon_0.stl";
     DIR* dir;
     struct dirent* ent;
@@ -283,7 +309,7 @@ void model_cb (const visualization_msgs::Marker& model_msg)
     oss << "package://object_meshes/object_models/" << stl_file;
     mesh_marker.mesh_resource = oss.str();
     //recon_stl_num = (recon_stl_num + 1) % 2;
-    mesh_pub.publish(mesh_marker);
+    mesh_pub.publish(mesh_marker); //publish the mesh 
   }
 }
 

@@ -52,6 +52,7 @@ find_package(catkin REQUIRED
   pcl_ros
   geometric_shapes
   )
+  
 
 set(PROJECT_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 set(CMAKE_MODULE_PATH ${PROJECT_MODULE_PATH})
