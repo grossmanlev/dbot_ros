@@ -19,9 +19,13 @@
 #include <iostream>
 #include <iomanip> // setprecision
 #include <stdlib.h>
+#include <mutex>
 
 #include <cstdlib>
 #include <cstring>
+
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 #include <boost/dynamic_bitset.hpp>
 
@@ -32,6 +36,8 @@
 #include <pcl/point_cloud.h>
 #include <pcl/io/pcd_io.h>
 #include <pcl/console/parse.h>
+#include <pcl/common/transforms.h>
+#include <dbot_ros_msgs/ObjectState.h>
 
 typedef unsigned char byte;
 static int version;
@@ -40,6 +46,11 @@ static int size;
 static byte *voxels = 0;
 static float tx, ty, tz;
 static float scale;
+
+std::mutex pos_mutex;
+float x_pos, y_pos, z_pos;
+float x_or, y_or, z_or, w_or;
+bool goodPos = false;
 
 struct Voxel
 {
@@ -218,10 +229,27 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
 {
   // Declare Point Clouds
   pcl::PCLPointCloud2* pc2 = new pcl::PCLPointCloud2;
+  pcl::PointCloud<pcl::PointXYZ>::Ptr in_cloud (new pcl::PointCloud<pcl::PointXYZ>);
   pcl::PointCloud<pcl::PointXYZ>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZ>);
   // Concert the sensor_msgs to a Point Cloud
   pcl_conversions::toPCL(cloud_msg, *pc2);
-  pcl::fromPCLPointCloud2(*pc2, *cloud);
+  pcl::fromPCLPointCloud2(*pc2, *in_cloud);
+
+
+  // Rotation stuff
+  pos_mutex.lock();
+  Eigen::Quaternionf quat (x_or, y_or, z_or, w_or);
+  pos_mutex.unlock();
+  Eigen::Matrix3f rotation = quat.conjugate().toRotationMatrix();
+  Eigen::Affine3f transform (Eigen::Affine3f::Identity());
+  transform.rotate(rotation);
+  //pcl::transformPointCloud(*in_cloud, *cloud, transform);
+
+  Eigen::Vector4f centroid (x_pos, y_pos, z_pos, 0.0);
+  Eigen::Vector4f centroid_new (Eigen::Vector4f::Zero());
+  centroid_new.head<3>() = rotation * centroid.head<3>();
+  transform.translation() = centroid.head<3>() - centroid_new.head<3>();
+  pcl::transformPointCloud(*in_cloud, *cloud, transform);
 
   uint voxel_grid_size = 30; // Setting voxel_grid_size to default: 30
 
@@ -251,6 +279,7 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   float tx = min_point.x - voxel_size / 2.0;
   float ty = min_point.y - voxel_size / 2.0;
   float tz = min_point.z - voxel_size / 2.0;
+
   // Hack, change -0.0 to 0.0
   const float epsilon = 0.0000001;
   if ((tx > -epsilon) && (tx < 0.0))
@@ -265,6 +294,7 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   {
     tz = -1.0 * tz;
   }
+
   const pcl::PointXYZ translate(tx, ty, tz);
   std::cout << "Normalization transform: (1) translate ["
             << formatFloat(translate.x) << ", " << formatFloat(translate.y) << ", " << formatFloat(translate.z) << "], " << std::endl;
@@ -272,14 +302,27 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
 
   const unsigned int num_voxels = voxel_grid_size * voxel_grid_size * voxel_grid_size;
 
+  //Finding center!
+  pos_mutex.lock();
+  pcl::PointXYZ center (x_pos, y_pos, z_pos);
+  pos_mutex.unlock();
+  const Voxel center_voxel = getGridIndex(center, translate, voxel_grid_size, scale);
+  printf("Center: %d, %d, %d\n", center_voxel.x, center_voxel.y, center_voxel.z);
+
   // Voxelize the PointCloud into a linear array
   boost::dynamic_bitset<> voxels_bitset(num_voxels);
   for (pcl::PointCloud<pcl::PointXYZ>::iterator it = cloud->begin(); it != cloud->end(); ++it)
   {
-    const Voxel voxel = getGridIndex(*it, translate, voxel_grid_size, scale);
+    Voxel voxel = getGridIndex(*it, translate, voxel_grid_size, scale);
+    voxel.x = voxel.x + (15 - center_voxel.x);
+    voxel.y = voxel.y + (15 - center_voxel.y);
+    voxel.z = voxel.z + (15 - center_voxel.z);
+    if(voxel.x < 0 || voxel.x >= voxel_grid_size || voxel.y < 0 || voxel.y >= voxel_grid_size || voxel.z < 0 || voxel.z >= voxel_grid_size)
+      continue;
     const unsigned int idx = getLinearIndex(voxel, voxel_grid_size);
     voxels_bitset[idx] = 1;
   }
+
 
   /*
   // For debugging: Write voxel indices to a file
@@ -364,6 +407,21 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
 
 }
 
+void state_cb (const dbot_ros_msgs::ObjectState& state_msg)
+{
+  std::lock_guard<std::mutex> lock(pos_mutex);
+  //ROS_INFO("Got a state message!\n");
+  printf("Received pose %f, %f, %f\n", state_msg.pose.pose.position.x, state_msg.pose.pose.position.y, state_msg.pose.pose.position.z);
+  x_pos = state_msg.pose.pose.position.x;
+  y_pos = state_msg.pose.pose.position.y;
+  z_pos = state_msg.pose.pose.position.z;
+  x_or = state_msg.pose.pose.orientation.x;
+  y_or = state_msg.pose.pose.orientation.y;
+  z_or = state_msg.pose.pose.orientation.z;
+  w_or = state_msg.pose.pose.orientation.w;
+  goodPos = true;
+}
+
 int main(int argc, char **argv)
 {
   // Initialize ROS
@@ -372,6 +430,8 @@ int main(int argc, char **argv)
 
   // Create a ROS subscriber for the input point cloud
   ros::Subscriber sub = nh.subscribe ("out_cloud", 1, cloud_cb);
+
+  ros::Subscriber sub_state = nh.subscribe("particle_tracker/object_state", 1, state_cb);
 
   // Spin
   ros::spin ();
