@@ -1,6 +1,6 @@
 
 particle_filter:
-  use_gpu: false
+  use_gpu: true
 
   cpu:
     # the number of particles if using cpu

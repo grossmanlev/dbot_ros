@@ -4,6 +4,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <cstdio>
 #include <dirent.h>
 #include <Eigen/Core>
 #include <Eigen/Geometry>
@@ -128,7 +129,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     maxPoint[0] = radius;
     maxPoint[1] = radius;
     maxPoint[2] = radius;
-    printf("Radius: %f\n", radius);
+    //printf("Radius: %f\n", radius);
     // Filter
     pcl::CropBox<pcl::PCLPointCloud2> cropFilter;
     cropFilter.setInputCloud(cloudPtr);
@@ -137,12 +138,6 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     //cropFilter.setTransform(cropAffine);
     cropFilter.setTranslation(Eigen::Vector3f(x_pos, y_pos, z_pos));
     cropFilter.setRotation(cropAffine.linear().eulerAngles(0, 1, 2));
-
-    Eigen::Vector4f min = cropFilter.getMin();
-    Eigen::Vector4f max = cropFilter.getMax();
-    printf("Min: %f, %f, %f\n", min[0], min[1], min[2]);
-    printf("Max: %f, %f, %f\n", max[0], max[1], max[2]);
-
     cropFilter.filter(*cloud_filtered);
 
     pcl::StatisticalOutlierRemoval<pcl::PCLPointCloud2> sor;
@@ -172,7 +167,7 @@ void state_cb (const dbot_ros_msgs::ObjectState& state_msg)
 {
   std::lock_guard<std::mutex> lock(pos_mutex);
   //ROS_INFO("Got a state message!\n");
-  printf("Received pose %f, %f, %f\n", state_msg.pose.pose.position.x, state_msg.pose.pose.position.y, state_msg.pose.pose.position.z);
+  //printf("Received pose %f, %f, %f\n", state_msg.pose.pose.position.x, state_msg.pose.pose.position.y, state_msg.pose.pose.position.z);
   x_pos = state_msg.pose.pose.position.x;
   y_pos = state_msg.pose.pose.position.y;
   z_pos = state_msg.pose.pose.position.z;
@@ -193,29 +188,29 @@ void model_cb (const visualization_msgs::Marker& model_msg)
 {
   if (model_msg.type == model_msg.MESH_RESOURCE) {
     shapes::Shape* mesh = shapes::createMeshFromResource("package://object_meshes/object_models/oil_bottle.obj");
-    mesh->print();
+    //mesh->print();
     const bodies::ConvexMesh* cm = new bodies::ConvexMesh(mesh);
     bodies::BoundingCylinder cyl;
     cm->computeBoundingCylinder(cyl);
-    ROS_INFO("Bounding sphere has radius: %0.3f and length %0.3f\n", cyl.radius, cyl.length);
+    //ROS_INFO("Bounding sphere has radius: %0.3f and length %0.3f\n", cyl.radius, cyl.length);
     radius = cyl.length / 2.0;
 
 
-    Eigen::Quaternionf og_rotation(original_pose.orientation.x, original_pose.orientation.y, 
-                                   original_pose.orientation.z, original_pose.orientation.w);
-    Eigen::Quaternionf m_rotation(model_msg.pose.orientation.x, model_msg.pose.orientation.y, 
-                                  model_msg.pose.orientation.z, model_msg.pose.orientation.w);
-    Eigen::Quaternionf composed;
-    Eigen::Quaternionf q1 = og_rotation; Eigen::Quaternionf q2 = m_rotation;
-    composed.setIdentity();
+    Eigen::Quaternionf og_rotation(original_pose.orientation.w, original_pose.orientation.x, 
+                                   original_pose.orientation.y, original_pose.orientation.z); //NOTE: Eigen::Quaternion takes w,x,y,z
+    Eigen::Quaternionf m_rotation(model_msg.pose.orientation.w, model_msg.pose.orientation.x, 
+                                  model_msg.pose.orientation.y, model_msg.pose.orientation.z);
+    Eigen::Quaternionf composed = og_rotation * m_rotation;
+    // Eigen::Quaternionf q1 = og_rotation; Eigen::Quaternionf q2 = m_rotation;
+    // composed.setIdentity();
 
-    composed.w() = q1.w() * q2.w() - q1.vec().dot(q2.vec());
-    composed.vec() = q1.w() * q2.vec() + q2.w() * q1.vec() + q1.vec().cross(q2.vec());
+    // composed.w() = q1.w() * q2.w() - q1.vec().dot(q2.vec());
+    // composed.vec() = q1.w() * q2.vec() + q2.w() * q1.vec() + q1.vec().cross(q2.vec());
 
-    printf("Original Pose: %f, %f, %f, %f\n", og_rotation.x(), og_rotation.y(), og_rotation.z(), og_rotation.w());
-    printf("Marker Pose: %f, %f, %f, %f\n", m_rotation.x(), m_rotation.y(), m_rotation.z(), m_rotation.w());
+    //printf("Original Pose: %f, %f, %f, %f\n", og_rotation.x(), og_rotation.y(), og_rotation.z(), og_rotation.w());
+    //printf("Marker Pose: %f, %f, %f, %f\n", m_rotation.x(), m_rotation.y(), m_rotation.z(), m_rotation.w());
 
-    Eigen::Quaterniond quat(cyl.pose.rotation());
+    //Eigen::Quaterniond quat(cyl.pose.rotation());
     //Eigen::Translation<double, 3> trans(cyl.pose.translation());
     Eigen::Vector3f trans(model_msg.pose.position.x, model_msg.pose.position.y, model_msg.pose.position.z);
 
@@ -231,33 +226,33 @@ void model_cb (const visualization_msgs::Marker& model_msg)
     //crop.translation() = trans;
 
 
-    visualization_msgs::Marker marker;
-    marker.header.frame_id = "/camera_depth_optical_frame"; //SPECIFIC (hardcoded)
-    marker.header.stamp = ros::Time::now();
-    marker.ns = "bounding_box";
-    marker.id = 0;
-    marker.type = visualization_msgs::Marker::SPHERE;
-    marker.action = visualization_msgs::Marker::ADD;
+    // visualization_msgs::Marker marker;
+    // marker.header.frame_id = "/camera_depth_optical_frame"; //SPECIFIC (hardcoded)
+    // marker.header.stamp = ros::Time::now();
+    // marker.ns = "bounding_box";
+    // marker.id = 0;
+    // marker.type = visualization_msgs::Marker::SPHERE;
+    // marker.action = visualization_msgs::Marker::ADD;
 
-    printf("Pose: %f, %f, %f\n", model_msg.pose.position.x, model_msg.pose.position.y, model_msg.pose.position.z);
-    marker.pose.position.x = model_msg.pose.position.x;
-    marker.pose.position.y = model_msg.pose.position.y;
-    marker.pose.position.z = model_msg.pose.position.z;
-    marker.pose.orientation.x = composed.x();
-    marker.pose.orientation.y = composed.y();
-    marker.pose.orientation.z = composed.z();
-    marker.pose.orientation.w = composed.w();
+    // printf("Pose: %f, %f, %f\n", model_msg.pose.position.x, model_msg.pose.position.y, model_msg.pose.position.z);
+    // marker.pose.position.x = model_msg.pose.position.x;
+    // marker.pose.position.y = model_msg.pose.position.y;
+    // marker.pose.position.z = model_msg.pose.position.z;
+    // marker.pose.orientation.x = composed.x();
+    // marker.pose.orientation.y = composed.y();
+    // marker.pose.orientation.z = composed.z();
+    // marker.pose.orientation.w = composed.w();
 
-    marker.scale.x = cyl.length;
-    marker.scale.y = cyl.length;
-    marker.scale.z = cyl.length;
-    marker.color.r = 0.0f;
-    marker.color.g = 0.0f;
-    marker.color.b = 1.0f;
-    marker.color.a = 1.0;
+    // marker.scale.x = cyl.length;
+    // marker.scale.y = cyl.length;
+    // marker.scale.z = cyl.length;
+    // marker.color.r = 0.0f;
+    // marker.color.g = 0.0f;
+    // marker.color.b = 1.0f;
+    // marker.color.a = 1.0;
 
-    marker.lifetime = ros::Duration();
-    bb_pub.publish(marker);
+    // marker.lifetime = ros::Duration();
+    // bb_pub.publish(marker);
 
 
     // Publish the mesh reconstruction marker
@@ -285,7 +280,8 @@ void model_cb (const visualization_msgs::Marker& model_msg)
     mesh_marker.color.b = 1.0;
     mesh_marker.color.a = 1.0;
 
-    // Hack to continuously update the mesh file (need to keep changing the file name)
+    // Hack to continuously update the mesh file (need to have the file name keep changing)
+    int max_file_num = 0;
     std::string stl_file = "recon_0.stl";
     DIR* dir;
     struct dirent* ent;
@@ -295,8 +291,12 @@ void model_cb (const visualization_msgs::Marker& model_msg)
         //std::cout << file << std::endl;
         std::size_t found = file.find(".stl");
         if(found != std::string::npos) {
-          stl_file = file;
-          std::cout << stl_file << std::endl;
+          int i;
+          sscanf(&file[0], "recon_%d.stl", &i);
+          if (i > max_file_num) {
+            max_file_num = i;
+            stl_file = file;
+          }
         }
       }
       closedir(dir);
@@ -334,7 +334,7 @@ int main (int argc, char** argv)
   // Create a ROS publisher for the output point cloud
   pub = nh.advertise<sensor_msgs::PointCloud2> ("out_cloud", 1);
 
-  bb_pub = nh.advertise<visualization_msgs::Marker> ("bounding_box", 1);
+  //bb_pub = nh.advertise<visualization_msgs::Marker> ("bounding_box", 1);
 
   mesh_pub = nh.advertise<visualization_msgs::Marker> ("recon_mesh", 1);
 

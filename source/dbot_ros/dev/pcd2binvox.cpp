@@ -151,7 +151,7 @@ int read_binvox(std::string filespec)
     return 0;
   }
   *input >> version;
-  std::cout << "reading binvox version " << version << std::endl;
+  //std::cout << "reading binvox version " << version << std::endl;
 
   depth = -1;
   int done = 0;
@@ -219,7 +219,7 @@ int read_binvox(std::string filespec)
   }  // while
 
   input->close();
-  std::cout << "  read " << nr_voxels << " voxels" << std::endl;
+  //std::cout << "  read " << nr_voxels << " voxels" << std::endl;
 
   return 1;
 }
@@ -265,13 +265,13 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
 
   const float max_cloud_extent = std::max(std::max(x_range, y_range), z_range);
   const float voxel_size = max_cloud_extent / (static_cast<float>(voxel_grid_size) - 1.0);
-  std::cout << "voxel_size = " << voxel_size << std::endl;
+  //std::cout << "voxel_size = " << voxel_size << std::endl;
 
   const float scale = (static_cast<float>(voxel_grid_size) * max_cloud_extent) / (static_cast<float>(voxel_grid_size) - 1.0);
 
-  std::cout << "Bounding box: "
-            << "[" << min_point.x << ", " << min_point.y << ", " << min_point.z << "] - "
-            << "[" << max_point.x << ", " << max_point.y << ", " << max_point.z << "]" << std::endl;
+  // std::cout << "Bounding box: "
+  //           << "[" << min_point.x << ", " << min_point.y << ", " << min_point.z << "] - "
+  //           << "[" << max_point.x << ", " << max_point.y << ", " << max_point.z << "]" << std::endl;
 
   // Calculate the PointCloud's translation from the origin.
   // We need to subtract half the voxel size, because points
@@ -296,9 +296,9 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   }
 
   const pcl::PointXYZ translate(tx, ty, tz);
-  std::cout << "Normalization transform: (1) translate ["
-            << formatFloat(translate.x) << ", " << formatFloat(translate.y) << ", " << formatFloat(translate.z) << "], " << std::endl;
-  std::cout << "                         (2) scale " << scale << std::endl;
+  // std::cout << "Normalization transform: (1) translate ["
+  //           << formatFloat(translate.x) << ", " << formatFloat(translate.y) << ", " << formatFloat(translate.z) << "], " << std::endl;
+  //std::cout << "                         (2) scale " << scale << std::endl;
 
   const unsigned int num_voxels = voxel_grid_size * voxel_grid_size * voxel_grid_size;
 
@@ -307,7 +307,7 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   pcl::PointXYZ center (x_pos, y_pos, z_pos);
   pos_mutex.unlock();
   const Voxel center_voxel = getGridIndex(center, translate, voxel_grid_size, scale);
-  printf("Center: %d, %d, %d\n", center_voxel.x, center_voxel.y, center_voxel.z);
+  //printf("Center: %d, %d, %d\n", center_voxel.x, center_voxel.y, center_voxel.z);
 
   // Voxelize the PointCloud into a linear array
   boost::dynamic_bitset<> voxels_bitset(num_voxels);
@@ -389,7 +389,7 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   }
   output->close();
 
-  std::cout << "done" << std::endl << std::endl;
+  //std::cout << "done" << std::endl << std::endl;
   //rename("tmp.txt", "out.txt");
 
   read_binvox("tmp.binvox");
@@ -411,7 +411,7 @@ void state_cb (const dbot_ros_msgs::ObjectState& state_msg)
 {
   std::lock_guard<std::mutex> lock(pos_mutex);
   //ROS_INFO("Got a state message!\n");
-  printf("Received pose %f, %f, %f\n", state_msg.pose.pose.position.x, state_msg.pose.pose.position.y, state_msg.pose.pose.position.z);
+  //printf("Received pose %f, %f, %f\n", state_msg.pose.pose.position.x, state_msg.pose.pose.position.y, state_msg.pose.pose.position.z);
   x_pos = state_msg.pose.pose.position.x;
   y_pos = state_msg.pose.pose.position.y;
   z_pos = state_msg.pose.pose.position.z;

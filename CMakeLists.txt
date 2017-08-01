@@ -52,7 +52,7 @@ find_package(catkin REQUIRED
   pcl_ros
   geometric_shapes
   )
-  
+
 
 set(PROJECT_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
 set(CMAKE_MODULE_PATH ${PROJECT_MODULE_PATH})
@@ -132,6 +132,7 @@ target_link_libraries(particle_tracker
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
+  /usr/local/cuda/lib64/libcudart.so
   yaml-cpp)
 
 add_executable(gaussian_tracker
@@ -143,6 +144,7 @@ target_link_libraries(gaussian_tracker
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
+  /usr/local/cuda/lib64/libcudart.so
   yaml-cpp)
 
 add_executable(object_tracker_service
@@ -154,6 +156,7 @@ target_link_libraries(object_tracker_service
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
+  /usr/local/cuda/lib64/libcudart.so
   yaml-cpp)
 
 add_executable(object_tracker_controller_service
@@ -162,9 +165,11 @@ add_dependencies(object_tracker_controller_service
   dbot_ros_msgs_generate_messages_cpp)
 target_link_libraries(object_tracker_controller_service
   ${PROJECT_NAME}
+  /home/lev/projects/tracking/devel/lib/libdbot_gpu.so
   ${catkin_LIBRARIES}
   ${OpenCV_LIBS}
   ${PCL_LIBRARIES}
+  /usr/local/cuda/lib64/libcudart.so
   yaml-cpp)
 
 add_executable(
@@ -173,7 +178,8 @@ add_executable(
 target_link_libraries(
   interactive_markers_initializer_node
   ${PROJECT_NAME}
-  ${catkin_LIBRARIES})
+  ${catkin_LIBRARIES}
+  /usr/local/cuda/lib64/libcudart.so)
 
 add_executable(
   pcl_example
@@ -181,6 +187,7 @@ add_executable(
 target_link_libraries(
   pcl_example
   ${PROJECT_NAME}
+  /home/lev/projects/tracking/devel/lib/libdbot_gpu.so
   ${PCL_LIBRARIES}
   ${catkin_LIBRARIES})
 
