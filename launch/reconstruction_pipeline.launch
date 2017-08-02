@@ -1,0 +1,9 @@
+<launch>
+
+  <node pkg="rviz" type="rviz" name="rviz" args="-d $(find dbot_ros)/default.rviz"/>
+
+  <include file="$(find dbot_ros)/launch/particle_tracker.launch"/>
+
+  <node pkg="dbot_ros" type="pcl_pipeline" name="pcl_pipeline" output="screen" respawn="false"/>
+
+</launch>

@@ -178,16 +178,16 @@ add_executable(
 target_link_libraries(
   interactive_markers_initializer_node
   ${PROJECT_NAME}
+  /home/lev/projects/tracking/devel/lib/libdbot_gpu.so
   ${catkin_LIBRARIES}
   /usr/local/cuda/lib64/libcudart.so)
 
 add_executable(
-  pcl_example
-  source/${PROJECT_NAME}/dev/pcl_example.cpp)
+  pcl_pipeline
+  source/${PROJECT_NAME}/dev/pcl_pipeline.cpp)
 target_link_libraries(
-  pcl_example
+  pcl_pipeline
   ${PROJECT_NAME}
-  /home/lev/projects/tracking/devel/lib/libdbot_gpu.so
   ${PCL_LIBRARIES}
   ${catkin_LIBRARIES})
 
