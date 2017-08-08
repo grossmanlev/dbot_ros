@@ -12,6 +12,7 @@
 //
 
 #include <ros/ros.h>
+#include <ros/package.h>
 
 #include <string>
 #include <stdio.h>
@@ -323,7 +324,8 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   writeVoxelsToFile(voxels, "voxels_from_pcd.txt");
   */
 
-  const std::string output_file("tmp.binvox");
+  std::string dbot_ros_path = ros::package::getPath("dbot_ros");
+  const std::string output_file(dbot_ros_path + "/tmp.binvox");
   std::ofstream* output = new std::ofstream(output_file, std::ios::out | std::ios::binary);
   if (!output->good())
   {
@@ -372,8 +374,8 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
   //std::cout << "done" << std::endl << std::endl;
   //rename("tmp.txt", "out.txt");
 
-  read_binvox("tmp.binvox");
-  std::ofstream *out = new std::ofstream("tmp.txt");
+  read_binvox(dbot_ros_path + "/tmp.binvox");
+  std::ofstream *out = new std::ofstream(dbot_ros_path + "/tmp.txt");
   if(!out->good()) {
     std::cout << "Error opening [voxels.txt]" << std::endl << std::endl;
     exit(1);
@@ -383,7 +385,7 @@ void cloud_cb (const sensor_msgs::PointCloud2& cloud_msg)
     if (((i + 1) % width) == 0) *out << std::endl;
   }
   out->close();
-  rename("tmp.txt", "voxels.txt");
+  rename(&(dbot_ros_path + "/tmp.txt")[0], &(dbot_ros_path + "/voxels.txt")[0]);
 
 }
 

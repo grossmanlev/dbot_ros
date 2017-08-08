@@ -6,4 +6,5 @@
 
   <node pkg="dbot_ros" type="pcl_pipeline" name="pcl_pipeline" output="screen" respawn="false"/>
 
+
 </launch>
