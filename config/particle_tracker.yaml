@@ -22,7 +22,7 @@ particle_filter:
 
   # if desired, exponential smoothing can be performed on the output
   # of the particle filter. [1.0: no smoothing, 0.0: maximal smoothing]
-  moving_average_update_rate: 1.0
+  moving_average_update_rate: 0.25
 
   # this affects the center of rotation of the object.
   # false: rotate around origin of the mesh model

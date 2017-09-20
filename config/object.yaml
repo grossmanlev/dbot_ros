@@ -2,6 +2,6 @@
 object:
   package:    object_meshes
   directory:  object_models
-  meshes:     [ Recon.obj ]
+  meshes:     [ oil_bottle.obj ]
 
 

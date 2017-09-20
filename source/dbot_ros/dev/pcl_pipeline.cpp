@@ -49,7 +49,7 @@
 ros::Publisher pub, bb_pub, mesh_pub;
 std::mutex pos_mutex;
 
-float x_pos, y_pos, z_pos, radius;
+float x_pos, y_pos, z_pos, cyl_length, cyl_radius;
 geometry_msgs::Pose original_pose;
 bool goodPos = false;
 Eigen::Vector4f minPoint, maxPoint;
@@ -235,12 +235,14 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
   if(goodPos) {
     // Set up the bouning box for the Crop filter
     //float hack_radius = 0.8 * radius;
-    minPoint[0] = -radius;
-    minPoint[1] = -radius;
-    minPoint[2] = -radius;
-    maxPoint[0] = radius;
-    maxPoint[1] = radius;
-    maxPoint[2] = radius;
+    pos_mutex.lock();
+    minPoint[0] = - cyl_radius - (cyl_radius * 0.1);
+    minPoint[2] = - (cyl_length / 2.0) - (cyl_length / 2.0) * 0.1;
+    minPoint[1] = - cyl_radius - (cyl_radius * 0.1);
+    maxPoint[0] = cyl_radius + (cyl_radius * 0.1);
+    maxPoint[2] = (cyl_length / 2.0) + (cyl_length / 2.0) * 0.1;
+    maxPoint[1] = cyl_radius + (cyl_radius * 0.1);
+    pos_mutex.unlock();
     //printf("Radius: %f\n", radius);
     // Filter
     pcl::CropBox<pcl::PCLPointCloud2> cropFilter;
@@ -251,6 +253,10 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
     pos_mutex.lock();
     cropFilter.setTranslation(Eigen::Vector3f(x_pos, y_pos, z_pos));
     cropFilter.setRotation(cropAffine.linear().eulerAngles(0, 1, 2));
+    Eigen::Vector3f tmp = cropAffine.linear().eulerAngles(0, 1, 2);
+    //Eigen::Quaternionf tmp (cropAffine.linear());
+    //printf("tmp: %f, %f, %f\n", tmp[0], tmp[1], tmp[2]);
+    //printf("tmp: %f, %f, %f, %f\n", tmp.x(), tmp.y(), tmp.z(), tmp.w());
     pos_mutex.unlock();
     cropFilter.filter(*cloud_filtered);
 
@@ -344,7 +350,7 @@ void cloud_cb (const sensor_msgs::PointCloud2ConstPtr& cloud_msg)
 
   const unsigned int num_voxels = voxel_grid_size * voxel_grid_size * voxel_grid_size;
 
-  //Finding center!
+  // Fine center
   pos_mutex.lock();
   pcl::PointXYZ center (x_pos, y_pos, z_pos);
   pos_mutex.unlock();
@@ -455,11 +461,14 @@ void intmodel_cb (const visualization_msgs::InteractiveMarkerInit& intmodel_msg)
 void model_cb (const visualization_msgs::Marker& model_msg)
 {
   if (model_msg.type == model_msg.MESH_RESOURCE) {
-    shapes::Shape* mesh = shapes::createMeshFromResource("package://object_meshes/object_models/oil_bottle.obj");
+    shapes::Shape* mesh = shapes::createMeshFromResource("package://object_meshes/object_models/oil_bottle.obj"); //TODO: make not hardcoded
     const bodies::ConvexMesh* cm = new bodies::ConvexMesh(mesh);
     bodies::BoundingCylinder cyl;
     cm->computeBoundingCylinder(cyl);
-    radius = cyl.length / 2.0;
+    Eigen::Quaterniond cyl_posed (cyl.pose.linear());
+    Eigen::Quaternionf cyl_posef (cyl_posed);
+    //printf("Length: %f, Radius: %f\n", cyl.length, cyl.radius);
+    //radius = cyl.length / 2.0;
 
     Eigen::Quaternionf og_rotation(original_pose.orientation.w, original_pose.orientation.x, 
                                    original_pose.orientation.y, original_pose.orientation.z); //NOTE: Eigen::Quaternion takes w,x,y,z
@@ -467,14 +476,47 @@ void model_cb (const visualization_msgs::Marker& model_msg)
                                   model_msg.pose.orientation.y, model_msg.pose.orientation.z);
     Eigen::Quaternionf composed = og_rotation * m_rotation;
     Eigen::Vector3f trans(model_msg.pose.position.x, model_msg.pose.position.y, model_msg.pose.position.z);
+    
+    Eigen::Quaternionf cyl_pose_composed = og_rotation * m_rotation * cyl_posef;
+    //printf("cyl_pose_composed: %f, %f, %f, %f\n", cyl_pose_composed.x(), cyl_pose_composed.y(), cyl_pose_composed.z(), cyl_pose_composed.w());
+    Eigen::Vector3f tmp = cyl_pose_composed.toRotationMatrix().eulerAngles(0, 1, 2);
+    //printf("cyl: %f, %f, %f\n", tmp[0], tmp[1], tmp[2]);
     Eigen::Affine3f crop = Eigen::Affine3f::Identity();
     crop.translation() = trans;
-    crop.linear() = composed.toRotationMatrix(); // * Eigen::Scaling(radius)
+    crop.linear() = (cyl_posef * m_rotation * og_rotation).toRotationMatrix(); // * Eigen::Scaling(radius)
 
     pos_mutex.lock();
+    cyl_length = cyl.length;
+    cyl_radius = cyl.radius;
     cropAffine = crop;
     full_rotation = composed;
     pos_mutex.unlock();
+
+    // Publish the mesh reconstruction marker
+    // visualization_msgs::Marker box_marker;
+    // box_marker.header.frame_id = "/camera_depth_optical_frame"; //SPECIFIC (hardcoded)
+    // box_marker.header.stamp = ros::Time::now();
+    // box_marker.ns = "box";
+    // box_marker.id = 2;
+    // box_marker.type = visualization_msgs::Marker::CUBE;
+    // box_marker.action = visualization_msgs::Marker::ADD;
+
+    // box_marker.pose.position.x = model_msg.pose.position.x;
+    // box_marker.pose.position.y = model_msg.pose.position.y;
+    // box_marker.pose.position.z = model_msg.pose.position.z;
+    // box_marker.pose.orientation.x = cyl_pose_composed.x(); //composed.x();
+    // box_marker.pose.orientation.y = cyl_pose_composed.y(); //composed.y();
+    // box_marker.pose.orientation.z = cyl_pose_composed.z(); //composed.z();
+    // box_marker.pose.orientation.w = cyl_pose_composed.w(); //composed.w();
+
+    // box_marker.scale.x = cyl.radius * 2.0;
+    // box_marker.scale.y = cyl.radius * 2.0;
+    // box_marker.scale.z = cyl.length;
+    // //printf("Radius * 2.0 = %f\n", radius * 2.0);
+    // box_marker.color.r = 0.0;
+    // box_marker.color.g = 1.0;
+    // box_marker.color.b = 1.0;
+    // box_marker.color.a = 1.0;
 
     // Publish the mesh reconstruction marker
     visualization_msgs::Marker mesh_marker;
@@ -493,9 +535,9 @@ void model_cb (const visualization_msgs::Marker& model_msg)
     mesh_marker.pose.orientation.z = composed.z();
     mesh_marker.pose.orientation.w = composed.w();
 
-    mesh_marker.scale.x = radius * 2.0;
-    mesh_marker.scale.y = radius * 2.0;
-    mesh_marker.scale.z = radius * 2.0;
+    mesh_marker.scale.x = cyl.radius * 4.0;
+    mesh_marker.scale.y = cyl.radius * 4.0;
+    mesh_marker.scale.z = cyl.radius * 4.0;
     //printf("Radius * 2.0 = %f\n", radius * 2.0);
     mesh_marker.color.r = 0.0;
     mesh_marker.color.g = 1.0;
